@@ -12,7 +12,8 @@ sudo apt --fix-broken install -y
 sudo apt-get install -y alloy
 
 echo "Installing AM Blackbox configuration..."
-sudo cp ../../alloy/production/config.alloy /etc/alloy/config.alloy
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+sudo cp "$SCRIPT_DIR/../../alloy/production/config.alloy" /etc/alloy/config.alloy
 sudo systemctl restart alloy
 sudo systemctl enable alloy
 
