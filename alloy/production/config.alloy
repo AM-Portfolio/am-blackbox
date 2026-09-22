@@ -1,0 +1,48 @@
+logging {
+  level = "info"
+  format = "logfmt"
+}
+
+// 1. Collect host metrics (CPU, Memory, Disk, Network) using node_exporter integration
+prometheus.exporter.unix "host_metrics" { }
+
+prometheus.scrape "scrape_host" {
+  targets = prometheus.exporter.unix.host_metrics.targets
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// 2. Collect host logs (Journald / Syslog)
+loki.source.journal "host_logs" {
+  format_as_json = true
+  max_age = "12h"
+  forward_to = [loki.write.grafana_cloud.receiver]
+  labels = {
+    job = "systemd-journal",
+    environment = "production",
+    instance = env("HOSTNAME"),
+  }
+}
+
+// 3. Send Metrics to Grafana Cloud Prometheus
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_PROMETHEUS_URL")
+    
+    basic_auth {
+      username = env("GRAFANA_PROMETHEUS_USERNAME")
+      password = env("GRAFANA_API_TOKEN")
+    }
+  }
+}
+
+// 4. Send Logs to Grafana Cloud Loki
+loki.write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_LOKI_URL")
+    
+    basic_auth {
+      username = env("GRAFANA_LOKI_USERNAME")
+      password = env("GRAFANA_API_TOKEN")
+    }
+  }
+}

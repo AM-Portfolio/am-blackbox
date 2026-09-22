@@ -1,0 +1,20 @@
+{
+  "name": "am-blackbox",
+  "version": "1.0.0",
+  "description": "AM Blackbox - Autonomous infrastructure observability and incident intelligence",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server/index.js",
+    "dev": "bun run --watch src/server/index.js",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pg": "^8.11.3",
+    "@kubernetes/client-node": "^0.20.0",
+    "@modelcontextprotocol/sdk": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21"
+  }
+}

@@ -1,0 +1,44 @@
+services:
+  blackbox:
+    image: am-blackbox:latest
+    container_name: am_blackbox
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=blackbox_user
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=am_blackbox
+      - GRAFANA_API_TOKEN=${GRAFANA_API_TOKEN}
+      - ZOHO_CLIQ_WEBHOOK_URL=${ZOHO_CLIQ_WEBHOOK_URL}
+      # MCP credentials
+      - AM_MCP_CLIENT_ID=${AM_MCP_CLIENT_ID}
+      - AM_MCP_CLIENT_SECRET=${AM_MCP_CLIENT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./kubeconfig.yaml:/app/kubeconfig.yaml:ro
+    restart: always
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: am_blackbox_postgres
+    environment:
+      - POSTGRES_USER=blackbox_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=am_blackbox
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackbox_user -d am_blackbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+volumes:
+  postgres_data:

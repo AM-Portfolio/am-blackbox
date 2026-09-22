@@ -1,0 +1,44 @@
+services:
+  blackbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: am_blackbox
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=blackbox_user
+      - DB_PASSWORD=blackbox_local_pass
+      - DB_NAME=am_blackbox
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./test:/app/test
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: am_blackbox_postgres
+    environment:
+      - POSTGRES_USER=blackbox_user
+      - POSTGRES_PASSWORD=blackbox_local_pass
+      - POSTGRES_DB=am_blackbox
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackbox_user -d am_blackbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
