@@ -14,6 +14,13 @@ sudo apt-get install -y alloy
 echo "Installing AM Blackbox configuration..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 sudo cp "$SCRIPT_DIR/../../alloy/production/config.alloy" /etc/alloy/config.alloy
+
+echo "Configuring environment variables..."
+if [ -f "$SCRIPT_DIR/../../.env" ]; then
+    # Extract just the Grafana variables and append them to the Alloy default file
+    grep GRAFANA "$SCRIPT_DIR/../../.env" | sudo tee -a /etc/default/alloy
+fi
+
 sudo systemctl restart alloy
 sudo systemctl enable alloy
 
