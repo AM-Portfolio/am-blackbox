@@ -62,13 +62,35 @@ Here is a map of the folders we created and what they do. You can view this to g
 
 ---
 
-## 🚀 How It Was Set Up (Quickstart)
+## 🚀 How to Deploy (Quickstart)
 
-This system is built to run instantly without complex setup.
+This system is built to run instantly without complex setup. If you are a team member looking to deploy this to production (e.g., Oracle Cloud), follow these exact steps:
 
-1. **Environment Variables:** We created a `.env` file containing your `GRAFANA_API_TOKEN`, Postgres passwords, and MCP credentials.
-2. **Docker Compose:** We ran `docker compose up --build -d`.
-3. **Database Migrations:** Upon booting, the Bun server automatically ran the SQL files inside `src/database/migrations/` to construct the necessary tables for incidents and evidence.
-4. **Mock Testing:** We simulated a Grafana webhook pointing to `http://localhost:3000/webhooks/grafana`, which successfully triggered the entire pipeline end-to-end.
+### 1. Provision & Clone
+SSH into your Oracle Cloud VM (or any Linux server) and clone this repository:
+```bash
+git clone https://github.com/AM-Portfolio/am-blackbox.git
+cd am-blackbox
+```
 
-To deploy this to production, you will simply provision an Oracle VM and run the scripts located inside `oracle/deployment/`.
+### 2. Configure Environment Variables
+We have prepared a template for you. Copy the template and add your secret API token:
+```bash
+cp oracle/.env.template oracle/.env
+```
+Open `oracle/.env` and replace `YOUR_GRAFANA_API_TOKEN` with your actual Grafana Cloud API Token. (The Prometheus and Loki URLs/Usernames are already pre-filled for you!)
+
+### 3. Deploy the Control Plane
+Run the setup and deployment scripts. This will automatically install Docker, build the Bun application, spin up the PostgreSQL database, and run all SQL migrations automatically.
+```bash
+sudo bash oracle/deployment/setup.sh
+sudo bash oracle/deployment/deploy.sh
+```
+
+### 4. Connect Your Host Servers
+To actually start shipping logs and metrics *to* the Blackbox, you need to install the Grafana Alloy agent on your production web servers.
+SSH into your web servers and run:
+```bash
+sudo bash scripts/alloy/install.sh
+```
+This will automatically connect your servers to the Grafana endpoints we configured in step 2. You will instantly start seeing logs and metrics in your Grafana Dashboard!
