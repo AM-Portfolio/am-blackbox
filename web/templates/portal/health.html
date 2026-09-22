@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Health — AM Blackbox{% endblock %}
+{% block content %}
+<h1>Health</h1>
+<p>Overall: <strong class="{% if status == 'ok' %}ok{% else %}bad{% endif %}">{{ status }}</strong></p>
+
+<div class="card">
+  <div>Postgres: {% if db_ok %}<span class="ok">ok</span>{% else %}<span class="bad">fail</span> — {{ db_error }}{% endif %}</div>
+  <div>API ({{ api_url }}): {% if api_ok %}<span class="ok">ok</span>{% else %}<span class="bad">fail</span> — {{ api_error }}{% endif %}</div>
+  {% if api_body %}<pre>{{ api_body }}</pre>{% endif %}
+</div>
+
+<h2>VPS health ({{ environment }})</h2>
+<p class="meta">
+  Env:
+  <a href="?environment=nonprod">nonprod</a> ·
+  <a href="?environment=production">production</a>
+  ·
+  <a href="{{ grafana_dashboard_url }}?var-environment={{ environment }}" target="_blank" rel="noopener">Grafana VPS dashboard</a>
+</p>
+{% if vps_health %}
+<div class="card">
+  <div><strong>Status:</strong> {{ vps_health.status }}</div>
+  <div>Active hosts: {{ vps_health.activeHosts }} · Degraded: {{ vps_health.degradedHosts }} · Offline: {{ vps_health.offlineHosts }}</div>
+  {% if vps_health.reachability %}
+  <div>Node metrics: {% if vps_health.reachability.anyUp %}<span class="ok">up</span>{% else %}<span class="bad">silent</span>{% endif %}
+    (series={{ vps_health.reachability.seriesCount }})</div>
+  {% endif %}
+  {% if vps_health.hostMemory and not vps_health.hostMemory.skipped %}
+  <div>Mem available %: {{ vps_health.hostMemory.minAvailablePercent }}</div>
+  {% endif %}
+  <pre>{{ vps_health }}</pre>
+</div>
+{% else %}
+<p class="meta">VPS health unavailable (API may lack kube/Grafana access in local Mode).</p>
+{% endif %}
+{% endblock %}

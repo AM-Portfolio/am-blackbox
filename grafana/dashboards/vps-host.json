@@ -1,0 +1,347 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "text",
+      "title": "How to read (glance)",
+      "id": 10,
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+            "content": "**Left → right:** Node UP? → Mem% (red = host pressure) → crash/OOM signals → **Suspected cause**.\n\n**Problem pods list** shows kube *Warning* events (`BackOff`, `Failed`, `OOMKilled`, …) — that is who is unhealthy and why. K8s often records OOM as **BackOff restarting failed container**, not the string `OOMKilled` (that panel may stay empty).\n\n| Cause | When |\n|-------|------|\n| `vps_unreachable` | Node DOWN |\n| `host_memory_exhaustion` | Mem available **&lt; 15%** |\n| `oom_cascade` | Mem low **and** many crash/OOM signals |\n| `oom_killed` / crash loop | BackOff/OOM with Mem OK (pod limit or app crash) |"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Node up",
+      "id": 1,
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "expr": "max(up{job=\"node\",environment=\"$environment\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "up"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "DOWN", "color": "red" },
+                "1": { "text": "UP", "color": "green" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Mem available %",
+      "id": 2,
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 3 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "expr": "min(100 * (node_memory_MemAvailable_bytes{environment=\"$environment\"} / node_memory_MemTotal_bytes{environment=\"$environment\"}))",
+          "refId": "A",
+          "legendFormat": "mem"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 15 },
+              { "color": "green", "value": 25 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Crash / OOM signals (1h)",
+      "id": 6,
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 3 },
+      "datasource": { "type": "loki", "uid": "grafanacloud-logs" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({environment=\"$environment\",job=\"kubernetes-events\"} |~ \"reason=(BackOff|OOMKilled|Evicted)\" [1h]))",
+          "refId": "A",
+          "legendFormat": "signals",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": { "text": "0", "color": "green" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Suspected cause",
+      "description": "Heuristic from node up + mem% + OOM count (same codes as Blackbox).",
+      "id": 7,
+      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 3 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "expr": "(\n  (max(up{job=\"node\",environment=\"$environment\"}) or vector(0)) * 100\n  +\n  clamp_max(floor(min(100 * (node_memory_MemAvailable_bytes{environment=\"$environment\"} / node_memory_MemTotal_bytes{environment=\"$environment\"})) / 15), 1)\n)",
+          "refId": "A",
+          "legendFormat": "signal"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": 0,
+                "to": 0.5,
+                "result": { "text": "vps_unreachable", "color": "purple" }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 100.5,
+                "result": { "text": "host_pressure_or_ok — check OOM count", "color": "orange" }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 100.5,
+                "to": 999,
+                "result": { "text": "host_ok — check OOM list for pod limits", "color": "green" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "text", "value": null }]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Problem pods — which / why (BackOff, Failed, OOMKilled, Evicted…)",
+      "description": "Primary list. Read name=, reason=, msg= — e.g. BackOff = crash loop (often after OOM).",
+      "id": 8,
+      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 7 },
+      "datasource": { "type": "loki", "uid": "grafanacloud-logs" },
+      "targets": [
+        {
+          "expr": "{environment=\"$environment\",job=\"kubernetes-events\"} |~ \"reason=(BackOff|Failed|FailedMount|FailedScheduling|OOMKilled|Evicted|Killing|Unhealthy|Probe)\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Host journal (live)",
+      "description": "Host Alloy journal. Filter for OOM/kill when present; otherwise shows recent host activity.",
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "loki", "uid": "grafanacloud-logs" },
+      "targets": [
+        {
+          "expr": "{environment=\"$environment\",job=~\"systemd-journal|loki.source.journal.host_logs\"}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Pod container logs (after RBAC fix)",
+      "description": "Requires Alloy ClusterRole pods/log. Empty until DaemonSet can read logs.",
+      "id": 11,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "loki", "uid": "grafanacloud-logs" },
+      "targets": [
+        {
+          "expr": "{environment=\"$environment\",job=\"kubernetes-pods\"}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "type": "logs",
+      "title": "OOM / kill hints (journal + events)",
+      "id": 9,
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 26 },
+      "datasource": { "type": "loki", "uid": "grafanacloud-logs" },
+      "targets": [
+        {
+          "expr": "{environment=\"$environment\"} |~ \"(?i)OOMKilled|OutOfmemory|oom-kill|Killed process|reason=BackOff\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory available % (context)",
+      "id": 3,
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "expr": "100 * (node_memory_MemAvailable_bytes{environment=\"$environment\"} / node_memory_MemTotal_bytes{environment=\"$environment\"})",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 15 },
+              { "color": "green", "value": 25 }
+            ]
+          },
+          "custom": { "thresholdsStyle": { "mode": "line+area" } }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU busy % (context)",
+      "id": 4,
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",environment=\"$environment\"}[5m])) * 100)",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["am-blackbox", "vps", "alloy", "oom"],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "type": "custom",
+        "label": "Environment",
+        "query": "nonprod,production",
+        "current": { "selected": true, "text": "nonprod", "value": "nonprod" },
+        "options": [
+          { "selected": true, "text": "nonprod", "value": "nonprod" },
+          { "selected": false, "text": "production", "value": "production" }
+        ],
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "title": "AM Blackbox — VPS host",
+  "uid": "am-blackbox-vps-host",
+  "version": 2
+}

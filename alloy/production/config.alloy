@@ -1,33 +1,56 @@
+# Production Contabo host Alloy
+#
+# Uses the shared template at ../config.alloy with:
+#   AM_ENVIRONMENT=production
+#
+# Install:
+#   sudo AM_ENVIRONMENT=production bash scripts/alloy/install.sh
+#
+# Copy of shared config kept here for operators who expect alloy/production/:
+
 logging {
   level = "info"
   format = "logfmt"
 }
 
-// 1. Collect host metrics (CPU, Memory, Disk, Network) using node_exporter integration
 prometheus.exporter.unix "host_metrics" { }
 
-prometheus.scrape "scrape_host" {
-  targets = prometheus.exporter.unix.host_metrics.targets
+prometheus.relabel "host_labels" {
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
-}
 
-// 2. Collect host logs (Journald / Syslog)
-loki.source.journal "host_logs" {
-  format_as_json = true
-  max_age = "12h"
-  forward_to = [loki.write.grafana_cloud.receiver]
-  labels = {
-    job = "systemd-journal",
-    environment = "production",
-    instance = env("HOSTNAME"),
+  rule {
+    action       = "replace"
+    target_label = "environment"
+    replacement  = env("AM_ENVIRONMENT")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "job"
+    replacement  = "node"
   }
 }
 
-// 3. Send Metrics to Grafana Cloud Prometheus
+prometheus.scrape "scrape_host" {
+  targets    = prometheus.exporter.unix.host_metrics.targets
+  forward_to = [prometheus.relabel.host_labels.receiver]
+}
+
+loki.source.journal "host_logs" {
+  format_as_json = true
+  max_age        = "12h"
+  forward_to     = [loki.write.grafana_cloud.receiver]
+  labels = {
+    job         = "systemd-journal",
+    environment = env("AM_ENVIRONMENT"),
+    instance    = env("HOSTNAME"),
+  }
+}
+
 prometheus.remote_write "grafana_cloud" {
   endpoint {
     url = env("GRAFANA_PROMETHEUS_URL")
-    
+
     basic_auth {
       username = env("GRAFANA_PROMETHEUS_USERNAME")
       password = env("GRAFANA_API_TOKEN")
@@ -35,11 +58,10 @@ prometheus.remote_write "grafana_cloud" {
   }
 }
 
-// 4. Send Logs to Grafana Cloud Loki
 loki.write "grafana_cloud" {
   endpoint {
     url = env("GRAFANA_LOKI_URL")
-    
+
     basic_auth {
       username = env("GRAFANA_LOKI_USERNAME")
       password = env("GRAFANA_API_TOKEN")

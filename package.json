@@ -6,7 +6,8 @@
   "scripts": {
     "start": "bun run src/server/index.js",
     "dev": "bun run --watch src/server/index.js",
-    "test": "bun test"
+    "test": "bun test",
+    "oracle:status": "node scripts/oracle/check-account.js"
   },
   "dependencies": {
     "express": "^4.21.0",

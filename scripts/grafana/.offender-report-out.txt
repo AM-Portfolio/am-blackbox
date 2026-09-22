@@ -1,0 +1,350 @@
+﻿{
+  "generatedAt": "2026-09-22T19:01:22.773Z",
+  "method": "Blackbox /api/vps-health + Grafana Cloud (Alloy ingest). No VPS SSH/kubectl.",
+  "blackboxIncidents": null,
+  "environments": {
+    "nonprod": {
+      "environment": "nonprod",
+      "blackboxVpsHealth": {
+        "status": "offline",
+        "anyUp": true,
+        "silent": false,
+        "memAvailablePct": 79.99358853121137,
+        "note": "kube from Blackbox container unavailable (expected locally); host metrics from Grafana used"
+      },
+      "hostFromGrafana": {
+        "instances": [
+          "vps"
+        ],
+        "anyUp": true,
+        "memAvailablePct": 80,
+        "cpuBusyPct": 68.2
+      },
+      "suspectedCause": "crash_loop_or_unhealthy",
+      "topNamespaces": [
+        {
+          "namespace": "am-apps-preprod",
+          "eventWeight": 36875
+        },
+        {
+          "namespace": "kube-system",
+          "eventWeight": 9179
+        },
+        {
+          "namespace": "monitoring",
+          "eventWeight": 6567
+        },
+        {
+          "namespace": "vault",
+          "eventWeight": 335
+        }
+      ],
+      "topPods": [
+        {
+          "namespace": "am-apps-preprod",
+          "pod": "am-portfolio-preprod-6c45c9bf89-2wnnk",
+          "total": 12630,
+          "reasons": {
+            "BackOff": 5151,
+            "Unhealthy": 7479
+          }
+        },
+        {
+          "namespace": "am-apps-preprod",
+          "pod": "am-market-data-preprod-54b9847d6c-hx85f",
+          "total": 9594,
+          "reasons": {
+            "Unhealthy": 5148,
+            "BackOff": 4446
+          }
+        },
+        {
+          "namespace": "am-apps-preprod",
+          "pod": "am-portfolio-preprod-c864cbd7f-gvncs",
+          "total": 9272,
+          "reasons": {
+            "BackOff": 2666,
+            "Unhealthy": 6606
+          }
+        },
+        {
+          "namespace": "monitoring",
+          "pod": "promtail-8gwhj",
+          "total": 4299,
+          "reasons": {
+            "Unhealthy": 4299
+          }
+        },
+        {
+          "namespace": "kube-system",
+          "pod": "kube-scheduler-am-preprod-control-plane",
+          "total": 2526,
+          "reasons": {
+            "Unhealthy": 2526
+          }
+        },
+        {
+          "namespace": "kube-system",
+          "pod": "kube-apiserver-am-preprod-control-plane",
+          "total": 2347,
+          "reasons": {
+            "Unhealthy": 2347
+          }
+        },
+        {
+          "namespace": "kube-system",
+          "pod": "kube-controller-manager-am-preprod-control-plane",
+          "total": 2301,
+          "reasons": {
+            "Unhealthy": 2301
+          }
+        },
+        {
+          "namespace": "kube-system",
+          "pod": "etcd-am-preprod-control-plane",
+          "total": 1966,
+          "reasons": {
+            "Unhealthy": 1966
+          }
+        },
+        {
+          "namespace": "am-apps-preprod",
+          "pod": "am-subscription-preprod-dbfb6958d-stz4d",
+          "total": 1928,
+          "reasons": {
+            "FailedMount": 1928
+          }
+        },
+        {
+          "namespace": "monitoring",
+          "pod": "promtail-kpsv8",
+          "total": 1841,
+          "reasons": {
+            "Unhealthy": 1841
+          }
+        },
+        {
+          "namespace": "am-apps-preprod",
+          "pod": "am-user-platform-preprod-5766cd9979-pj2rv",
+          "total": 1763,
+          "reasons": {
+            "FailedMount": 1763
+          }
+        },
+        {
+          "namespace": "am-apps-preprod",
+          "pod": "am-identity-preprod-8479c7f45d-jg6fl",
+          "total": 1688,
+          "reasons": {
+            "FailedMount": 1688
+          }
+        },
+        {
+          "namespace": "monitoring",
+          "pod": "promtail-pjtz9",
+          "total": 427,
+          "reasons": {
+            "Unhealthy": 427
+          }
+        },
+        {
+          "namespace": "vault",
+          "pod": "vault-0",
+          "total": 335,
+          "reasons": {
+            "Unhealthy": 335
+          }
+        },
+        {
+          "namespace": "kube-system",
+          "pod": "kindnet-vhnvq",
+          "total": 13,
+          "reasons": {
+            "BackOff": 13
+          }
+        }
+      ],
+      "eventLinesSampled": 200
+    },
+    "production": {
+      "environment": "production",
+      "blackboxVpsHealth": {
+        "status": "offline",
+        "anyUp": false,
+        "silent": true,
+        "memAvailablePct": null,
+        "note": "kube from Blackbox container unavailable (expected locally); host metrics from Grafana used"
+      },
+      "hostFromGrafana": {
+        "instances": [],
+        "anyUp": false,
+        "memAvailablePct": null,
+        "cpuBusyPct": null
+      },
+      "suspectedCause": "vps_unreachable",
+      "topNamespaces": [
+        {
+          "namespace": "infra",
+          "eventWeight": 623
+        },
+        {
+          "namespace": "infra-prod",
+          "eventWeight": 281
+        },
+        {
+          "namespace": "growthbook",
+          "eventWeight": 191
+        },
+        {
+          "namespace": "infra-dev",
+          "eventWeight": 172
+        },
+        {
+          "namespace": "infra-preprod",
+          "eventWeight": 160
+        },
+        {
+          "namespace": "identity",
+          "eventWeight": 129
+        },
+        {
+          "namespace": "temporal",
+          "eventWeight": 48
+        },
+        {
+          "namespace": "vault",
+          "eventWeight": 32
+        },
+        {
+          "namespace": "kube-system",
+          "eventWeight": 4
+        }
+      ],
+      "topPods": [
+        {
+          "namespace": "infra",
+          "pod": "kafka-ui-79cb8957f4-tt6vq",
+          "total": 165,
+          "reasons": {
+            "Unhealthy": 165
+          }
+        },
+        {
+          "namespace": "infra",
+          "pod": "zookeeper-0",
+          "total": 117,
+          "reasons": {
+            "Unhealthy": 117
+          }
+        },
+        {
+          "namespace": "infra-prod",
+          "pod": "influxdb-0",
+          "total": 116,
+          "reasons": {
+            "Unhealthy": 116
+          }
+        },
+        {
+          "namespace": "infra",
+          "pod": "kafka-0",
+          "total": 109,
+          "reasons": {
+            "BackOff": 1,
+            "Unhealthy": 108
+          }
+        },
+        {
+          "namespace": "infra",
+          "pod": "influxdb-0",
+          "total": 108,
+          "reasons": {
+            "Unhealthy": 108
+          }
+        },
+        {
+          "namespace": "infra-dev",
+          "pod": "kafka-0",
+          "total": 98,
+          "reasons": {
+            "Unhealthy": 98
+          }
+        },
+        {
+          "namespace": "growthbook",
+          "pod": "growthbook-frontend-6b4674bcfd-62vzz",
+          "total": 93,
+          "reasons": {
+            "Unhealthy": 93
+          }
+        },
+        {
+          "namespace": "growthbook",
+          "pod": "growthbook-backend-66689dd955-rzqtp",
+          "total": 90,
+          "reasons": {
+            "Unhealthy": 90
+          }
+        },
+        {
+          "namespace": "infra-preprod",
+          "pod": "kafka-0",
+          "total": 87,
+          "reasons": {
+            "Unhealthy": 87
+          }
+        },
+        {
+          "namespace": "infra-prod",
+          "pod": "kafka-0",
+          "total": 87,
+          "reasons": {
+            "Unhealthy": 87
+          }
+        },
+        {
+          "namespace": "identity",
+          "pod": "authentik-server-d56654f65-xnv4m",
+          "total": 81,
+          "reasons": {
+            "Unhealthy": 81
+          }
+        },
+        {
+          "namespace": "infra-dev",
+          "pod": "kafka-exporter-6cc8fc4445-bb2jw",
+          "total": 72,
+          "reasons": {
+            "BackOff": 72
+          }
+        },
+        {
+          "namespace": "infra-preprod",
+          "pod": "kafka-exporter-6cc8fc4445-kwdsv",
+          "total": 72,
+          "reasons": {
+            "BackOff": 72
+          }
+        },
+        {
+          "namespace": "infra-prod",
+          "pod": "kafka-exporter-6cc8fc4445-9qvq4",
+          "total": 72,
+          "reasons": {
+            "BackOff": 72
+          }
+        },
+        {
+          "namespace": "identity",
+          "pod": "keycloak-0",
+          "total": 44,
+          "reasons": {
+            "Unhealthy": 44
+          }
+        }
+      ],
+      "eventLinesSampled": 200
+    }
+  },
+  "blackboxApi": "ok"
+}

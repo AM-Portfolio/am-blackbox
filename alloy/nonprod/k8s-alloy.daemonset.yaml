@@ -1,0 +1,189 @@
+# Alloy DaemonSet for Kind nonprod — pod logs + kube events → Grafana Cloud Loki
+# Apply (from repo root, with Grafana env exported):
+#   kubectl --kubeconfig ../VPS/kubeconfigs/nonprod.yaml create namespace monitoring --dry-run=client -o yaml | kubectl --kubeconfig ../VPS/kubeconfigs/nonprod.yaml apply -f -
+#   kubectl --kubeconfig ../VPS/kubeconfigs/nonprod.yaml -n monitoring create secret generic grafana-cloud \
+#     --from-literal=token="$GRAFANA_API_TOKEN" \
+#     --from-literal=loki-user="$GRAFANA_LOKI_USERNAME" \
+#     --from-literal=loki-url="$GRAFANA_LOKI_URL" \
+#     --dry-run=client -o yaml | kubectl --kubeconfig ../VPS/kubeconfigs/nonprod.yaml apply -f -
+#   kubectl --kubeconfig ../VPS/kubeconfigs/nonprod.yaml apply -f alloy/nonprod/k8s-alloy.daemonset.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: monitoring
+data:
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    discovery.relabel "pods" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app"]
+        target_label  = "app"
+      }
+      rule {
+        action       = "replace"
+        target_label = "environment"
+        replacement  = "nonprod"
+      }
+      rule {
+        action       = "replace"
+        target_label = "job"
+        replacement  = "kubernetes-pods"
+      }
+    }
+
+    loki.source.kubernetes "pods" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [loki.write.grafana_cloud.receiver]
+    }
+
+    loki.process "events_label" {
+      forward_to = [loki.write.grafana_cloud.receiver]
+      stage.static_labels {
+        values = {
+          environment = "nonprod",
+          job         = "kubernetes-events",
+        }
+      }
+    }
+
+    loki.source.kubernetes_events "cluster_events" {
+      forward_to = [loki.process.events_label.receiver]
+      log_format = "logfmt"
+    }
+
+    loki.write "grafana_cloud" {
+      endpoint {
+        url = sys.env("GRAFANA_LOKI_URL")
+        basic_auth {
+          username = sys.env("GRAFANA_LOKI_USERNAME")
+          password = sys.env("GRAFANA_API_TOKEN")
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+  namespace: monitoring
+  labels:
+    app: alloy
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+    spec:
+      serviceAccountName: alloy
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.5.1
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/var/lib/alloy/data
+            - --server.http.listen-addr=0.0.0.0:12345
+          env:
+            - name: GRAFANA_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-cloud
+                  key: token
+            - name: GRAFANA_LOKI_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-cloud
+                  key: loki-user
+            - name: GRAFANA_LOKI_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-cloud
+                  key: loki-url
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/alloy/data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-config
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: data
+          emptyDir: {}
+      tolerations:
+        - operator: Exists

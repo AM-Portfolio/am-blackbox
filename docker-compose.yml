@@ -1,36 +1,11 @@
 services:
-  blackbox:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: am_blackbox
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - NODE_ENV=development
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=blackbox_user
-      - DB_PASSWORD=blackbox_local_pass
-      - DB_NAME=am_blackbox
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./test:/app/test
-    restart: unless-stopped
-
   postgres:
     image: postgres:15-alpine
     container_name: am_blackbox_postgres
     environment:
-      - POSTGRES_USER=blackbox_user
-      - POSTGRES_PASSWORD=blackbox_local_pass
-      - POSTGRES_DB=am_blackbox
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: blackbox_user
+      POSTGRES_PASSWORD: blackbox_local_pass
+      POSTGRES_DB: am_blackbox
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -38,6 +13,63 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  blackbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: am_blackbox
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: blackbox_user
+      DB_PASSWORD: blackbox_local_pass
+      DB_NAME: am_blackbox
+      MCP_ENABLED: "false"
+      WATCHDOG_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./database:/app/database
+      - ./test:/app/test
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: am_blackbox_web
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_DEBUG: "true"
+      DJANGO_SECRET_KEY: local-dev-only-change-me
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: blackbox_user
+      DB_PASSWORD: blackbox_local_pass
+      DB_NAME: am_blackbox
+      BLACKBOX_API_URL: http://blackbox:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      blackbox:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

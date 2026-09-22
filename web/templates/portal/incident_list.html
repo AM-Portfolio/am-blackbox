@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Incidents — AM Blackbox{% endblock %}
+{% block content %}
+<h1>Incidents</h1>
+<p class="meta">Core flow + VPS/OOM diagnosis. Trigger via <code>POST /webhooks/manual</code>.</p>
+
+{% if incidents %}
+<table>
+  <thead>
+    <tr>
+      <th>Created</th>
+      <th>Severity</th>
+      <th>Status</th>
+      <th>Cause</th>
+      <th>Service</th>
+      <th>Title</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for i in incidents %}
+    <tr>
+      <td class="meta">{{ i.created_at|date:"Y-m-d H:i" }}</td>
+      <td><span class="badge sev-{{ i.severity }}">{{ i.severity }}</span></td>
+      <td><span class="badge st-{{ i.status }}">{{ i.status }}</span></td>
+      <td>
+        {% if i.cause_badge == 'oom' %}<span class="badge badge-oom">OOM</span>
+        {% elif i.cause_badge == 'vps-dead' %}<span class="badge badge-dead">VPS dead</span>
+        {% elif i.cause_badge == 'vps-pressure' %}<span class="badge badge-pressure">VPS pressure</span>
+        {% elif i.diagnosis_confidence %}<span class="meta">{{ i.diagnosis_confidence }}</span>
+        {% else %}<span class="meta">—</span>{% endif %}
+      </td>
+      <td>{{ i.affected_service|default:"—" }}</td>
+      <td><a class="rowlink" href="{% url 'incident_detail' i.id %}">{{ i.title }}</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty card">
+  No incidents yet. Run the manual webhook against the API, then refresh.
+</div>
+{% endif %}
+{% endblock %}

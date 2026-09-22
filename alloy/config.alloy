@@ -1,0 +1,72 @@
+logging {
+  level = "info"
+  format = "logfmt"
+}
+
+// Shared host Alloy config for Contabo prod and Kind nonprod hosts.
+// Required env: AM_ENVIRONMENT (production|nonprod), GRAFANA_* credentials
+
+prometheus.exporter.unix "host_metrics" { }
+
+prometheus.relabel "host_labels" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    action       = "replace"
+    target_label = "environment"
+    replacement  = env("AM_ENVIRONMENT")
+  }
+
+  rule {
+    action       = "replace"
+    target_label = "job"
+    replacement  = "node"
+  }
+}
+
+prometheus.scrape "scrape_host" {
+  targets    = prometheus.exporter.unix.host_metrics.targets
+  forward_to = [prometheus.relabel.host_labels.receiver]
+}
+
+loki.source.journal "host_logs" {
+  format_as_json = true
+  max_age        = "12h"
+  forward_to     = [loki.process.journal_labels.receiver]
+  labels = {
+    environment = env("AM_ENVIRONMENT"),
+    instance    = env("HOSTNAME"),
+  }
+}
+
+loki.process "journal_labels" {
+  forward_to = [loki.write.grafana_cloud.receiver]
+
+  stage.static_labels {
+    values = {
+      job = "systemd-journal",
+    }
+  }
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_PROMETHEUS_URL")
+
+    basic_auth {
+      username = env("GRAFANA_PROMETHEUS_USERNAME")
+      password = env("GRAFANA_API_TOKEN")
+    }
+  }
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = env("GRAFANA_LOKI_URL")
+
+    basic_auth {
+      username = env("GRAFANA_LOKI_USERNAME")
+      password = env("GRAFANA_API_TOKEN")
+    }
+  }
+}

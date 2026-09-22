@@ -1,7 +1,7 @@
 node_modules
 .git
-.env
+secrets
+*.tok
+*.pem
 logs
-coverage
-.vscode
-.idea
+web

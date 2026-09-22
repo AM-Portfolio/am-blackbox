@@ -26,12 +26,11 @@ Here is how the pieces connect together:
 
 ## 🐳 What is Running (The Pods)
 
-AM Blackbox is designed to be fully portable. We have bundled it using Docker Compose so it runs perfectly on your local machine and on the Oracle Cloud VPS.
+AM Blackbox is designed to be fully portable. Local Docker Compose (Phase 1) runs three services:
 
-When you run `docker compose up -d`, it spins up exactly two containers (pods):
-
-1. **`am_blackbox_postgres` (PostgreSQL 15):** The dedicated database that stores all incidents, evidence metadata, and problem signatures. 
-2. **`am_blackbox` (The Node/Bun Server):** The actual application running on the blazing-fast Bun runtime. It exposes the API on port 3000, runs the automated background workers, and hosts the MCP server.
+1. **`am_blackbox_postgres` (PostgreSQL 15):** incidents, evidence metadata, patterns.
+2. **`am_blackbox` (Bun API on :3000):** webhooks + engines (`GRAFANA_DISABLED` for local).
+3. **`am_blackbox_web` (Django on :8000):** operator UI to verify the core flow.
 
 ---
 
@@ -49,20 +48,122 @@ Here is a map of the folders we created and what they do. You can view this to g
 - `src/policies/` - Security gates that decide if an automated action is allowed (e.g., Staging vs. Production rules).
 - `src/mcp/` - The Model Context Protocol server that allows AI agents to read the data.
 - `src/notifications/` - Zoho Cliq integration.
-- `src/integrations/` - API clients for external systems (Grafana, Kubernetes, Zoho).
+- `src/integrations/` - API clients for external systems (Grafana, Kubernetes, Zoho, Oracle Cloud).
 - `src/database/` - Postgres connection pool and SQL migrations.
 
 ### Cloud & Infrastructure
-- `alloy/` - Configuration files for Grafana Alloy (the host agent).
-- `oracle/` - The Docker Compose and deployment scripts specifically tailored for the Oracle Cloud production VPS.
-- `scripts/` - Day-2 Operational bash scripts for backups, database migrations, rollbacks, and health checks.
+- `web/` - Django operator UI (incidents, OOM offenders, VPS state).
+- `alloy/` - Grafana Alloy host + Kubernetes DaemonSet configs (prod Contabo + Kind nonprod → one Grafana Cloud).
+- `oracle/` - Oracle Cloud VPS deploy pack — later.
+- `secrets/` - Local OCI API keys (gitignored). See `secrets/README.md`.
+- `scripts/` - Day-2 ops scripts; `scripts/alloy/install.sh` for dual-env host Alloy.
+- `scripts/oracle/check-account.js` - OCI Free Tier / Ampere capacity status (`npm run oracle:status`).
 
 ### Testing
 - `test/` - Unit tests for the core engines (runs via `bun test`).
 
 ---
 
-## 🚀 How to Deploy (Quickstart)
+## Phase 1 — Local Docker + Django UI (core flow)
+
+No Grafana and no Oracle required. Verify: manual webhook → incident in DB → visible in UI.
+
+```bash
+docker compose up --build
+```
+
+Services:
+- API: http://localhost:3000/health
+- UI: http://localhost:8000
+- Postgres: internal only (`postgres:5432` on the compose network)
+
+### Core-flow verify checklist
+
+```bash
+# 1. Health
+curl -s http://localhost:3000/health
+
+# 2. Fire a manual alert (creates incident + stub evidence)
+curl -s -X POST http://localhost:3000/webhooks/manual \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"HighCPU\",\"severity\":\"critical\",\"environment\":\"local\",\"service\":\"demo-api\",\"pod\":\"demo-api-0\",\"node\":\"node-a\",\"description\":\"Phase 1 core-flow test\"}"
+
+# 3. Open UI → list → click incident → confirm events + stub evidence
+#    http://localhost:8000
+#    http://localhost:8000/health/
+```
+
+Pass criteria: incident appears in the Django list with events and `stub`/`manual` evidence; no Grafana credentials needed.
+
+---
+
+## Dual-env logs + VPS root cause (OOM / out-of-state)
+
+**Goal:** Know why Contabo/Kind is dead, which pods OOMKilled, and when the VPS is out of state — using **one Grafana Cloud**.
+
+```text
+Contabo host Alloy (environment=production) ──┐
+Kind host Alloy (environment=nonprod)         ├──► Grafana Cloud (Loki + Prom)
+K8s DaemonSet Alloy (prod + nonprod pods)   ──┘         │
+                                                         ▼
+                                              Blackbox diagnosis → Django UI
+```
+
+### 1. Host Alloy (Contabo prod + Kind host)
+
+Export Grafana Cloud credentials (same as `oracle/.env.template`), then:
+
+```bash
+# Contabo prod
+sudo AM_ENVIRONMENT=production bash scripts/alloy/install.sh
+
+# Kind nonprod host
+sudo AM_ENVIRONMENT=nonprod bash scripts/alloy/install.sh
+```
+
+Shared config: [`alloy/config.alloy`](alloy/config.alloy). Every series/log gets `environment=production|nonprod`.
+
+### 2. Cluster Alloy (pod logs + kube events)
+
+```bash
+# Kind nonprod
+kubectl --kubeconfig ../VPS/kubeconfigs/nonprod.yaml apply -f alloy/nonprod/k8s-alloy.daemonset.yaml
+# (create monitoring ns + grafana-cloud secret first — see comments in the YAML)
+
+# Contabo prod cluster
+kubectl --kubeconfig ../VPS/kubeconfigs/prod.yaml apply -f alloy/production/k8s-alloy.daemonset.yaml
+```
+
+### 3. Blackbox (Grafana enabled)
+
+Set `GRAFANA_DISABLED=false` and Grafana URL/token/datasource UIDs on the Blackbox service. Alerts must include label `environment=production|nonprod`.
+
+Diagnosis cause codes:
+
+| Code | Meaning |
+|------|---------|
+| `vps_unreachable` | Metrics/Alloy silent or kube API down — VPS likely dead |
+| `oom_cascade` | Multiple OOMKilled pods + host/node memory pressure |
+| `oom_killed` | Single pod OOMKilled |
+| `host_memory_exhaustion` | MemoryPressure / NotReady / low MemAvailable |
+
+### 4. Verify in UI
+
+1. Grafana Explore: filter `environment="production"` and `environment="nonprod"`.
+2. Fire webhook with `environment=production` (or wait for a real alert).
+3. Open http://localhost:8000 — badges **OOM** / **VPS dead** / **VPS pressure**.
+4. Incident detail → **OOM offenders** table + **VPS state**.
+5. http://localhost:8000/health/ → VPS health summary (`GET /api/vps-health`).
+
+---
+
+## Oracle Cloud (next step)
+
+After local core flow works, use OCI API keys to inspect Free Tier / Ampere capacity (`npm run oracle:status`). See [secrets/README.md](secrets/README.md). Deploy to Oracle VM later via `oracle/deployment/`.
+
+---
+
+## 🚀 Oracle / remote deploy (later)
 
 This system is built to run instantly without complex setup. If you are a team member looking to deploy this to production (e.g., Oracle Cloud), follow these exact steps:
 

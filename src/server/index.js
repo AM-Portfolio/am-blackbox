@@ -7,32 +7,38 @@ import { startWatchdog, stopWatchdog } from '../watchdog/watchdog.service.js';
 import { startMcpServer } from '../mcp/server.js';
 
 const PORT = config.port;
+const mcpEnabled = String(process.env.MCP_ENABLED || 'false').toLowerCase() === 'true';
+const watchdogEnabled = String(process.env.WATCHDOG_ENABLED || 'false').toLowerCase() === 'true';
 
 async function start() {
   try {
     logger.info('Initializing AM Blackbox Control Plane...');
 
-    // 1. Database Migrations
     await runMigrations();
 
-    // 2. Start MCP Server (Read-only tools for AI)
-    await startMcpServer();
+    if (mcpEnabled) {
+      await startMcpServer();
+    } else {
+      logger.info('MCP server skipped (MCP_ENABLED!=true)');
+    }
 
-    // 3. Express App (Ingestion webhooks, API)
     const server = app.listen(PORT, () => {
       logger.info(`Server listening on port ${PORT}`);
     });
 
-    // 4. Start Background Watchdog
-    startWatchdog();
+    if (watchdogEnabled) {
+      startWatchdog();
+    } else {
+      logger.info('Watchdog skipped (WATCHDOG_ENABLED!=true)');
+    }
 
     const gracefulShutdown = async (signal) => {
       logger.info(`Received ${signal}. Shutting down gracefully...`);
       server.close(async () => {
         logger.info('HTTP server closed.');
-        
-        stopWatchdog();
-        
+        if (watchdogEnabled) {
+          stopWatchdog();
+        }
         try {
           await pool.end();
           logger.info('Database pool closed.');
@@ -41,7 +47,7 @@ async function start() {
         }
         process.exit(0);
       });
-      
+
       setTimeout(() => {
         logger.error('Could not close connections in time, forcefully shutting down');
         process.exit(1);
@@ -58,7 +64,6 @@ async function start() {
       logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
       gracefulShutdown('unhandledRejection');
     });
-    
   } catch (error) {
     logger.error('Failed to start server', { error: error.message });
     process.exit(1);

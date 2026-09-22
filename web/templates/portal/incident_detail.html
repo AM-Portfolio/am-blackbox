@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ incident.title }} — AM Blackbox{% endblock %}
+{% block content %}
+<p class="meta"><a href="{% url 'incident_list' %}">← Incidents</a></p>
+<h1>{{ incident.title }}</h1>
+<p>
+  <span class="badge sev-{{ incident.severity }}">{{ incident.severity }}</span>
+  <span class="badge st-{{ incident.status }}">{{ incident.status }}</span>
+  {% if cause_badge == 'oom' %}<span class="badge badge-oom">OOM</span>{% endif %}
+  {% if cause_badge == 'vps-dead' %}<span class="badge badge-dead">VPS dead</span>{% endif %}
+  {% if cause_badge == 'vps-pressure' %}<span class="badge badge-pressure">VPS pressure</span>{% endif %}
+  <span class="meta">{{ incident.environment }} · {{ incident.type }}</span>
+</p>
+
+<div class="card">
+  <div><strong>Service:</strong> {{ incident.affected_service|default:"—" }}</div>
+  <div><strong>Pod:</strong> {{ incident.pod|default:"—" }}</div>
+  <div><strong>Node:</strong> {{ incident.node|default:"—" }}</div>
+  <div><strong>Suspected cause:</strong> {{ incident.suspected_cause|default:"—" }}</div>
+  <div><strong>Confirmed cause:</strong> {{ incident.confirmed_cause|default:"—" }}</div>
+  <div><strong>Diagnosis confidence:</strong> {{ incident.diagnosis_confidence|default:"—" }}</div>
+  <div class="meta">Created {{ incident.created_at }} · Updated {{ incident.updated_at }}</div>
+</div>
+
+<h2>OOM offenders</h2>
+{% if oom_offenders %}
+<table>
+  <thead><tr><th>Namespace</th><th>Pod</th><th>Container</th><th>Restarts</th><th>Node</th></tr></thead>
+  <tbody>
+  {% for o in oom_offenders %}
+    <tr>
+      <td>{{ o.namespace }}</td>
+      <td>{{ o.pod }}</td>
+      <td>{{ o.container }}</td>
+      <td>{{ o.restartCount }}</td>
+      <td>{{ o.node|default:"—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="meta">No OOMKilled pods recorded on this incident.</p>
+{% endif %}
+
+<h2>VPS state</h2>
+{% if vps_state %}
+<div class="card">
+  <div><strong>Kube reachable:</strong> {{ vps_state.reachable }}</div>
+  <div><strong>MemoryPressure:</strong> {{ vps_state.anyMemoryPressure }}</div>
+  <div><strong>DiskPressure:</strong> {{ vps_state.anyDiskPressure }}</div>
+  <div><strong>NotReady:</strong> {{ vps_state.anyNotReady }}</div>
+  {% if vps_state.error %}<div class="bad">{{ vps_state.error }}</div>{% endif %}
+  {% if vps_state.nodes %}
+  <ul>
+    {% for n in vps_state.nodes %}
+    <li>{{ n.name }} — ready={{ n.isReady }} memPressure={{ n.memoryPressure }} diskPressure={{ n.diskPressure }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% else %}
+<p class="meta">No VPS/node state attached yet.</p>
+{% endif %}
+
+<h2>Events ({{ events|length }})</h2>
+{% for e in events %}
+<div class="card">
+  <div><strong>{{ e.event_type }}</strong> <span class="meta">{{ e.occurred_at }}</span></div>
+  <div>{{ e.message }}</div>
+  {% if e.metadata %}<pre>{{ e.metadata }}</pre>{% endif %}
+</div>
+{% empty %}
+<p class="meta">No events.</p>
+{% endfor %}
+
+<h2>Evidence ({{ evidence|length }})</h2>
+{% for ev in evidence %}
+<div class="card">
+  <div><strong>{{ ev.source }}</strong> — {{ ev.summary|default:ev.query_reference }}</div>
+  <div class="meta">{{ ev.time_start }} → {{ ev.time_end }}</div>
+  <div><code>{{ ev.query_reference }}</code></div>
+  {% if ev.metadata %}<pre>{{ ev.metadata }}</pre>{% endif %}
+</div>
+{% empty %}
+<p class="meta">No evidence.</p>
+{% endfor %}
+{% endblock %}

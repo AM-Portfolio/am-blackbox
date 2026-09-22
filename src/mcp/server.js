@@ -6,6 +6,7 @@ import { registerKubernetesTools } from './tools/kubernetes.tool.js';
 import { registerDiagnosisTools } from './tools/diagnosis.tool.js';
 import { registerPatternsTools } from './tools/patterns.tool.js';
 import { registerRecoveryTools } from './tools/recovery.tool.js';
+import { registerOracleTools } from './tools/oracle.tool.js';
 import { logger } from '../utils/logger.js';
 
 export async function startMcpServer() {
@@ -23,6 +24,7 @@ export async function startMcpServer() {
   registerDiagnosisTools(mcp);
   registerPatternsTools(mcp);
   registerRecoveryTools(mcp);
+  registerOracleTools(mcp);
 
   // Expose over stdio (useful if running as a sidecar or executed by an agent directly)
   const transport = new StdioServerTransport();

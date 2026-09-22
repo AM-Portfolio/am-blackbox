@@ -8,3 +8,8 @@ coverage/
 dist/
 build/
 *.log
+*.pem
+*.tok
+secrets/*
+!secrets/README.md
+!secrets/*.example
